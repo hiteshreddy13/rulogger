@@ -1,5 +1,7 @@
 package com.rulogger;
 
+import java.nio.ByteBuffer;
+
 public class RuLogger {
 
     static {
@@ -11,4 +13,7 @@ public class RuLogger {
     public static native void info(String message);
     public static native void warn(String message);
     public static native void error(String message);
+
+    // Zero-copy logging using DirectByteBuffer
+    public static native void logDirect(ByteBuffer buffer, int length);
 }

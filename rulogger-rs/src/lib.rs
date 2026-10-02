@@ -1,13 +1,14 @@
-use jni::objects::{JClass, JString};
+use crossbeam_channel::{unbounded, Sender};
+use jni::objects::{JClass, JString, JByteBuffer};
 use jni::JNIEnv;
 use std::fs::OpenOptions;
 use std::io::{BufWriter, Write};
-use std::sync::mpsc::{self, Sender};
-use std::sync::{Mutex, OnceLock};
+use std::sync::OnceLock;
 use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::slice;
 
-static LOG_SENDER: OnceLock<Mutex<Sender<LogEntry>>> = OnceLock::new();
+static LOG_SENDER: OnceLock<Sender<LogEntry>> = OnceLock::new();
 
 enum LogEntry {
     Message(String),
@@ -29,8 +30,12 @@ pub extern "system" fn Java_com_rulogger_RuLogger_init<'local>(
         Err(_) => String::from("rulogger.log"),
     };
 
-    let (tx, rx) = mpsc::channel::<LogEntry>();
-    LOG_SENDER.get_or_init(|| Mutex::new(tx));
+    let (tx, rx) = unbounded::<LogEntry>();
+
+    if LOG_SENDER.set(tx).is_err() {
+        // Already initialized
+        return;
+    }
 
     thread::spawn(move || {
         let file = OpenOptions::new()
@@ -59,10 +64,8 @@ pub extern "system" fn Java_com_rulogger_RuLogger_close<'local>(
     _env: JNIEnv<'local>,
     _class: JClass<'local>,
 ) {
-    if let Some(sender_mutex) = LOG_SENDER.get() {
-        if let Ok(sender) = sender_mutex.lock() {
-            let _ = sender.send(LogEntry::Shutdown);
-        }
+    if let Some(sender) = LOG_SENDER.get() {
+        let _ = sender.send(LogEntry::Shutdown);
     }
 }
 
@@ -120,6 +123,29 @@ pub extern "system" fn Java_com_rulogger_RuLogger_error<'local>(
     log_message("ERROR", &message);
 }
 
+// Zero-copy direct buffer logging
+#[no_mangle]
+pub extern "system" fn Java_com_rulogger_RuLogger_logDirect<'local>(
+    env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    buffer: JByteBuffer<'local>,
+    length: jni::sys::jint,
+) {
+    if buffer.is_null() || length <= 0 {
+        return;
+    }
+
+    if let Ok(address) = env.get_direct_buffer_address(&buffer) {
+        // Safe because the JVM guarantees the memory is valid and we only read it here.
+        let bytes = unsafe { slice::from_raw_parts(address, length as usize) };
+        if let Ok(message) = std::str::from_utf8(bytes) {
+            log_message("DIRECT", message);
+        } else {
+            log_message("DIRECT", "<invalid utf-8 buffer>");
+        }
+    }
+}
+
 fn log_message(level: &str, message: &str) {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -128,10 +154,8 @@ fn log_message(level: &str, message: &str) {
 
     let formatted_message = format!("[{}] [{}] {}", now, level, message);
 
-    if let Some(sender_mutex) = LOG_SENDER.get() {
-        if let Ok(sender) = sender_mutex.lock() {
-            let _ = sender.send(LogEntry::Message(formatted_message));
-        }
+    if let Some(sender) = LOG_SENDER.get() {
+        let _ = sender.send(LogEntry::Message(formatted_message));
     } else {
         // Fallback if not initialized
         println!("{}", formatted_message);
