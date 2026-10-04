@@ -5,32 +5,27 @@ import org.openjdk.jmh.annotations.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 
 @State(Scope.Benchmark)
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)
-@Warmup(iterations = 1, time = 1)
-@Measurement(iterations = 1, time = 1)
+@Warmup(iterations = 3, time = 1)
+@Measurement(iterations = 5, time = 1)
 @Fork(1)
-@Threads(1)
+@Threads(4)
 public class RuLoggerBenchmark {
 
     private static final Logger slf4jLogger = LoggerFactory.getLogger(RuLoggerBenchmark.class);
 
-    private final String logMessage = "This is a standard benchmark log message with some payload data to write.";
-    private ByteBuffer directBuffer;
-    private int bufferLength;
+    private final String logTemplate = "User {} logged in from IP {} with session id {}";
+    private final String user = "alice_wonderland";
+    private final String ip = "192.168.1.100";
+    private final int sessionId = 987654321;
 
     @Setup(Level.Trial)
     public void setup() {
         RuLogger.init("rulogger-benchmark.log");
-        byte[] bytes = logMessage.getBytes(StandardCharsets.UTF_8);
-        directBuffer = ByteBuffer.allocateDirect(bytes.length);
-        directBuffer.put(bytes);
-        bufferLength = bytes.length;
     }
 
     @TearDown(Level.Trial)
@@ -39,18 +34,12 @@ public class RuLoggerBenchmark {
     }
 
     @Benchmark
-    public void testSlf4jLogback() {
-        slf4jLogger.info(logMessage);
+    public void testSlf4jParameterized() {
+        slf4jLogger.info(logTemplate, user, ip, sessionId);
     }
 
     @Benchmark
-    public void testRuLoggerString() {
-        RuLogger.info(logMessage);
-    }
-
-    @Benchmark
-    public void testRuLoggerDirectBuffer() {
-        directBuffer.position(0);
-        RuLogger.logDirect(directBuffer, bufferLength);
+    public void testRuLoggerParameterizedZeroAlloc() {
+        RuLogger.info(logTemplate, user, ip, sessionId);
     }
 }

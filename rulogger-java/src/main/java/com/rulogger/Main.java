@@ -1,27 +1,20 @@
 package com.rulogger;
 
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-
 public class Main {
     public static void main(String[] args) throws InterruptedException {
-        System.out.println("Testing RuLogger with advanced features...");
+        System.out.println("Testing RuLogger with zero-allocation parameterized features...");
         RuLogger.init("app.log");
 
         RuLogger.info("This is an info message.");
         RuLogger.warn("This is a warning message.");
         RuLogger.error("This is an error message.");
 
-        // Zero-copy logging test
-        String directMessage = "This is a zero-copy direct buffer log.";
-        byte[] bytes = directMessage.getBytes(StandardCharsets.UTF_8);
-        ByteBuffer directBuffer = ByteBuffer.allocateDirect(bytes.length);
-        directBuffer.put(bytes);
+        // Zero-copy dynamic formatting logging test
+        String user = "bob_builder";
+        int id = 404;
+        long timestamp = System.currentTimeMillis();
 
-        // Ensure position is reset before passing to rust
-        directBuffer.flip();
-
-        RuLogger.logDirect(directBuffer, bytes.length);
+        RuLogger.info("User {} failed login attempt {} at {}", user, id, timestamp);
 
         // Ensure async flush completes
         RuLogger.close();
