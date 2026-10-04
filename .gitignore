@@ -1,2 +1,6 @@
 **/target
 rulogger-java/out/
+app.log
+dependency-reduced-pom.xml
+rulogger-benchmark.log
+logback-benchmark.log

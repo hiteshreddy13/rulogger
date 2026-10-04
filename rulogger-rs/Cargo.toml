@@ -7,4 +7,5 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
+crossbeam-channel = "0.5.17"
 jni = "0.21.1"

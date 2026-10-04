@@ -1,0 +1,21 @@
+<configuration>
+    <!-- Define a file appender for fair file-IO comparison -->
+    <appender name="FILE" class="ch.qos.logback.core.FileAppender">
+        <file>logback-benchmark.log</file>
+        <append>true</append>
+        <encoder>
+            <pattern>[%d{yyyy-MM-dd HH:mm:ss.SSS}] [%level] %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Async appender to make it as fair as possible compared to our async rust thread -->
+    <appender name="ASYNC" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="FILE" />
+        <queueSize>1048576</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+    </appender>
+
+    <root level="info">
+        <appender-ref ref="ASYNC" />
+    </root>
+</configuration>
